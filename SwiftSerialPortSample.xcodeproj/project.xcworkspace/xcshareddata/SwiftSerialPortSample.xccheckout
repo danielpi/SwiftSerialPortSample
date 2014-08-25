@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>IDESourceControlProjectFavoriteDictionaryKey</key>
+	<false/>
+	<key>IDESourceControlProjectIdentifier</key>
+	<string>EBF218FA-2F1B-4E27-9DAF-3ECE73DE178D</string>
+	<key>IDESourceControlProjectName</key>
+	<string>SwiftSerialPortSample</string>
+	<key>IDESourceControlProjectOriginsDictionary</key>
+	<dict>
+		<key>B1014B67103B79EA6EAFDF9A68619DE6A3FA1DC9</key>
+		<string>https://github.com/danielpi/SwiftSerialPortSample.git</string>
+	</dict>
+	<key>IDESourceControlProjectPath</key>
+	<string>SwiftSerialPortSample.xcodeproj</string>
+	<key>IDESourceControlProjectRelativeInstallPathDictionary</key>
+	<dict>
+		<key>B1014B67103B79EA6EAFDF9A68619DE6A3FA1DC9</key>
+		<string>../..</string>
+	</dict>
+	<key>IDESourceControlProjectURL</key>
+	<string>https://github.com/danielpi/SwiftSerialPortSample.git</string>
+	<key>IDESourceControlProjectVersion</key>
+	<integer>111</integer>
+	<key>IDESourceControlProjectWCCIdentifier</key>
+	<string>B1014B67103B79EA6EAFDF9A68619DE6A3FA1DC9</string>
+	<key>IDESourceControlProjectWCConfigurations</key>
+	<array>
+		<dict>
+			<key>IDESourceControlRepositoryExtensionIdentifierKey</key>
+			<string>public.vcs.git</string>
+			<key>IDESourceControlWCCIdentifierKey</key>
+			<string>B1014B67103B79EA6EAFDF9A68619DE6A3FA1DC9</string>
+			<key>IDESourceControlWCCName</key>
+			<string>SwiftSerialPortSample</string>
+		</dict>
+	</array>
+</dict>
+</plist>

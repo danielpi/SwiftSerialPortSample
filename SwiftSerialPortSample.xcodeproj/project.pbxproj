@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E62C151019ABFABD0067CDAB /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E62C150F19ABFABD0067CDAB /* IOKit.framework */; };
 		E6650C7B193F156E00FF1DD9 /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6650C7A193F156E00FF1DD9 /* main.swift */; };
 /* End PBXBuildFile section */
 
@@ -23,6 +24,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		E62C150F19ABFABD0067CDAB /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
 		E6650C77193F156E00FF1DD9 /* SwiftSerialPortSample */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = SwiftSerialPortSample; sourceTree = BUILT_PRODUCTS_DIR; };
 		E6650C7A193F156E00FF1DD9 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		E6650C81193FF6DC00FF1DD9 /* IOKitPlayground.playground */ = {isa = PBXFileReference; lastKnownFileType = file.playground; path = IOKitPlayground.playground; sourceTree = "<group>"; };
@@ -33,6 +35,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E62C151019ABFABD0067CDAB /* IOKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -42,6 +45,7 @@
 		E6650C6E193F156E00FF1DD9 = {
 			isa = PBXGroup;
 			children = (
+				E62C150F19ABFABD0067CDAB /* IOKit.framework */,
 				E6650C79193F156E00FF1DD9 /* SwiftSerialPortSample */,
 				E6650C78193F156E00FF1DD9 /* Products */,
 			);
@@ -235,6 +239,7 @@
 				E6650C80193F156E00FF1DD9 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
 	};
