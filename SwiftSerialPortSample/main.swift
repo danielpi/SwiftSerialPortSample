@@ -121,7 +121,7 @@ func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
     var classesToMatchDict = (classesToMatch as NSDictionary) as Dictionary<String, AnyObject>
 
     // Look for devices that claim to be modems.
-    classesToMatchDict[kIOSerialBSDTypeKey] = kIOSerialBSDModemType
+    classesToMatchDict[kIOSerialBSDTypeKey] = kIOSerialBSDAllTypes
     let classesToMatchCFDictRef = (classesToMatchDict as NSDictionary) as CFDictionaryRef
     
     // Each serial device object has a property with key
