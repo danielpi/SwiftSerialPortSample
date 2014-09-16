@@ -31,7 +31,7 @@ import Cocoa
 import CoreFoundation
 import IOKit
 import IOKit.serial
-
+//import
 
 
 
@@ -236,13 +236,14 @@ func openSerialPort(bsdPath: String) -> Int {
         println("Error opening port")
     }
     
-    /* This looks like it needs a bridging header
+    
+    
     // Note that open() follows POSIX semantics: multiple open() calls to the same file will succeed
     // unless the TIOCEXCL ioctl is issued. This will prevent additional opens except by root-owned
     // processes.
     // See tty(4) <x-man-page//4/tty> and ioctl(2) <x-man-page//2/ioctl> for details.
     
-    var result = ioctl(fileDescriptor, TIOCEXCL)
+    var result = ioctlTIOCEXCL(fileDescriptor)
     if (result == -1) {
         println("Error setting TIOXCL")
     }
@@ -250,14 +251,15 @@ func openSerialPort(bsdPath: String) -> Int {
     // Now that the device is open, clear the O_NONBLOCK flag so subsequent I/O will block.
     // See fcntl(2) <x-man-page//2/fcntl> for details.
     
-    if (fcntl(fileDescriptor, F_SETFL, 0) == -1) {
-    printf("Error clearing O_NONBLOCK %s - %s(%d).\n",
-    bsdPath, strerror(errno), errno);
-    goto error;
-    }*/
+    result = fcntlF_SETFL(fileDescriptor, 0)
+    if (result == -1) {
+        //printf("Error clearing O_NONBLOCK %s - %s(%d).\n", bsdPath, strerror(errno), errno);
+        println("Error clearing O_NONBLOCK")
+        //goto error;
+    }
     
     // Get the current options and save them so we can restore the default settings later.
-    var result = tcgetattr(fileDescriptor, &gOriginalTTYAttrs)
+    result = tcgetattr(fileDescriptor, &gOriginalTTYAttrs)
     if (result == -1) {
         println("Error getting attributes")
     }
@@ -295,13 +297,14 @@ func openSerialPort(bsdPath: String) -> Int {
     // other than those specified by POSIX. The driver for the underlying serial hardware
     // ultimately determines which baud rates can be used. This ioctl sets both the input
     // and output speed.
-    /*
-    speed_t speed = 14400; // Set 14400 baud
-    if (ioctl(fileDescriptor, IOSSIOSPEED, &speed) == -1) {
-        printf("Error calling ioctl(..., IOSSIOSPEED, ...) %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
+    
+    let speed: speed_t = 14400; // Set 14400 baud
+    result = ioctlIOSSIOSPEED(fileDescriptor, UnsafeMutablePointer(bitPattern: speed))
+    if (result == -1) {
+        //printf("Error calling ioctl(..., IOSSIOSPEED, ...) %s - %s(%d).\n" bsdPath, strerror(errno), errno);
+        println("Error calling ioctl(..., IOSSIOSPEED, ...) \(strerror(errno)) \(errno)")
     }
-    */
+    
     // Print the new input and output baud rates. Note that the IOSSIOSPEED ioctl interacts with the serial driver
     // directly bypassing the termios struct. This means that the following two calls will not be able to read
     // the current baud rate if the IOSSIOSPEED ioctl was used but will instead return the speed set by the last call
