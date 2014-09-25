@@ -20,7 +20,10 @@ int ioctlTIOCEXCL(int fildes) {
 }
 
 int ioctlIOSSIOSPEED(int fildes, speed_t *speed) {
-    return ioctl(fildes, IOSSIOSPEED, speed);
+    
+    int result = ioctl(fildes, IOSSIOSPEED, speed);
+    printf("%d result:%d\n", (int)speed, result);
+    return result;
 }
 
 int fcntlF_SETFL(int fildes, int flags) {

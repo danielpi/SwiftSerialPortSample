@@ -298,7 +298,7 @@ func openSerialPort(bsdPath: String) -> Int {
     // ultimately determines which baud rates can be used. This ioctl sets both the input
     // and output speed.
     
-    let speed: speed_t = 14400; // Set 14400 baud
+    let speed: speed_t = 2400; // Set 14400 baud
     result = ioctlIOSSIOSPEED(fileDescriptor, UnsafeMutablePointer(bitPattern: speed))
     if (result == -1) {
         //printf("Error calling ioctl(..., IOSSIOSPEED, ...) %s - %s(%d).\n" bsdPath, strerror(errno), errno);
