@@ -118,7 +118,7 @@ func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
     // Serial devices are instances of class IOSerialBSDClient.
     // Create a matching dictionary to find those instances."IOSerialBSDClient"
     var classesToMatch = IOServiceMatching(kIOSerialBSDServiceValue).takeUnretainedValue()
-    var classesToMatchDict = (classesToMatch as NSDictionary) as Dictionary<String, AnyObject>
+    var classesToMatchDict = (classesToMatch as NSDictionary) as! Dictionary<String, AnyObject>
 
     // Look for devices that claim to be modems.
     classesToMatchDict[kIOSerialBSDTypeKey] = kIOSerialBSDAllTypes
@@ -148,17 +148,15 @@ func getModemPath(serialPortIterator: io_iterator_t) -> String? {
     var modemService: io_object_t
     var modemFound = false
     var bsdPath: String? = nil
-    // Iterate across all modems found. In this example, we bail after finding the first modem.
+    // Iterate across all modems found. Use the last one
     
     do {
         modemService = IOIteratorNext(serialPortIterator)
         if (modemService != 0) {
             let key: CFString! = "IOCalloutDevice"
             let bsdPathAsCFtring: AnyObject? = IORegistryEntryCreateCFProperty(modemService, key, kCFAllocatorDefault, 0).takeUnretainedValue()
-            bsdPath = bsdPathAsCFtring as String?
-            if let path = bsdPath {
-                modemFound = true
-            }
+            bsdPath = bsdPathAsCFtring as! String?
+            println("Found \(bsdPath!)")
         }
     } while (modemService != 0 && !modemFound)
     return bsdPath
@@ -696,7 +694,7 @@ func main() -> Int {
     
     var bsdPath = getModemPath(serialPortIterator)
     if let path = bsdPath {
-        println("Found \(path)")
+        println("Using port at parth \(path)")
     } else {
         println("No modems were found.")
     }

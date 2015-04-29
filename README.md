@@ -30,7 +30,7 @@ Working with CFDictionaries is a bit cumbersome. I believe that they should be t
 	var classesToMatch = IOServiceMatching(kIOSerialBSDServiceValue).takeUnretainedValue()
     var classesToMatchDict = (classesToMatch as NSDictionary) as Dictionary<String, AnyObject>
     
-I was then able to modify the Dictionary using subscripts and then cast it back to a CFDictionaryRef (Why not a CFDictionary??) in order to sue it for IOServiceGetMatchingServices.
+I was then able to modify the Dictionary using subscripts and then cast it back to a CFDictionaryRef (Why not a CFDictionary??) in order to use it for IOServiceGetMatchingServices.
 
 	classesToMatchDict[kIOSerialBSDTypeKey] = kIOSerialBSDModemType
     let classesToMatchCFDictRef = (classesToMatchDict as NSDictionary) as CFDictionaryRef
