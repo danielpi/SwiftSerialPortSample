@@ -45,7 +45,7 @@ let LOCAL_ECHO = true
 let MATCH_PATH = "/dev/tty.usbserial-FTFWP23E"
 
 //#define kATCommandString	"AT\r"
-let kATCommandString = "AT\r"
+let kATCommandString = "AT\r\n"
 
 //#ifdef LOCAL_ECHO
 //#define kOKResponseString	"AT\r\r\nOK\r\n"
@@ -613,7 +613,7 @@ static char *logString(char *str)
 // Return true if successful, otherwise false.
 func initializeModem(fileDescriptor: Int) -> Bool {
     var result = false
-    var buffer: Array<Character> = Array(count: 256, repeatedValue: "?")
+    var buffer: Array<CChar> = Array(count: 256, repeatedValue: 0)
     //var bufPtr: UnsafePointer<Character> = UnsafePointer<Character>(buffer)
     var bufPtr: Int = 0
     
@@ -638,21 +638,17 @@ func initializeModem(fileDescriptor: Int) -> Bool {
         //bufPtr = UnsafePointer<Character>(buffer)
         bufPtr = 0
         repeat {
-            print("read")
             numBytes = read(Int32(fileDescriptor), &buffer, buffer.count)
-            print("\(numBytes)")
             
             if (numBytes == -1) {
                 print("Error reading from modem - \(strerror(errno))(\(errno)).\n")
             } else if (numBytes > 0) {
-                
                 bufPtr += numBytes
-                
-                let lastChar: Character = buffer[bufPtr - 1]
-                print("\(numBytes) \(bufPtr) \(lastChar) \(buffer[255]) \(buffer.capacity)")
-                
-                if (lastChar == "\n" || lastChar == "\r") {
+                if (buffer[bufPtr - 1] == 10 || buffer[bufPtr - 1] == 13) {
                     break
+                }
+                if let returned = String.fromCString(buffer) {
+                    print("Received: \(returned)")
                 }
             }
             else {
