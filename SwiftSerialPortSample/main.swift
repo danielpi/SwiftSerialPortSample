@@ -35,22 +35,30 @@ import IOKit.serial
 
 
 
-/*
+
 // Default to local echo being on. If your modem has local echo disabled, undefine the following macro.
-#define LOCAL_ECHO
+//#define LOCAL_ECHO
+let LOCAL_ECHO = true
 
 // Find the first device that matches the callout device path MATCH_PATH.
 // If this is undefined, return the first device found.
-#define MATCH_PATH "/dev/tty.usbserial-FTFWP23E"
+//#define MATCH_PATH "/dev/tty.usbserial-FTFWP23E"
+let MATCH_PATH = "/dev/tty.usbserial-FTFWP23E"
 
-#define kATCommandString	"AT\r"
+//#define kATCommandString	"AT\r"
+let kATCommandString = "AT\r"
 
-#ifdef LOCAL_ECHO
-#define kOKResponseString	"AT\r\r\nOK\r\n"
-#else
-#define kOKResponseString	"\r\nOK\r\n"
-#endif
-*/
+//#ifdef LOCAL_ECHO
+//#define kOKResponseString	"AT\r\r\nOK\r\n"
+//#else
+//#define kOKResponseString	"\r\nOK\r\n"
+//#endif
+if LOCAL_ECHO {
+    let kOKResponseString = "AT\r\r\nOK\r\n"
+} else {
+    let kOKResponseString = "\r\nOK\r\n"
+}
+
 
 //const int kNumRetries = 3;
 let kNumRetries = 3
@@ -58,7 +66,7 @@ let kNumRetries = 3
 // Hold the original termios attributes so we can reset them
 //static struct termios gOriginalTTYAttrs;
 
-var gOriginalTTYAttrs: termios = termios(c_iflag: 0, c_oflag: 0, c_cflag: 0, c_lflag: 0, c_cc: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0), c_ispeed: 0, c_ospeed: 0)
+var gOriginalTTYAttrs: termios = termios()
 //struct gOriginalTTYAttrs:termios
 
 // Function prototypes
@@ -117,25 +125,30 @@ func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
     
     // Serial devices are instances of class IOSerialBSDClient.
     // Create a matching dictionary to find those instances."IOSerialBSDClient"
-    var classesToMatch = IOServiceMatching(kIOSerialBSDServiceValue).takeUnretainedValue()
-    var classesToMatchDict = (classesToMatch as NSDictionary) as! Dictionary<String, AnyObject>
+    let classesToMatch = IOServiceMatching(kIOSerialBSDServiceValue) as NSMutableDictionary
+    if (classesToMatch.count == 0) { // Not sure about this. IOServiceMatching(kIOSerialBSDServiceValue) could return NULL which would be 0 in Swift but I'm not sure what "as NSMutableDictionary" would do with that. I can't think of how to force IOServiceMatching to fail in order to test this out.
+        print("IOServiceMatching returned a NULL dictionary.");
+    } else {
+        // Look for devices that claim to be modems.
+        classesToMatch[kIOSerialBSDTypeKey] = kIOSerialBSDModemType
+        
+        // Each serial device object has a property with key
+        // kIOSerialBSDTypeKey and a value that is one of kIOSerialBSDAllTypes,
+        // kIOSerialBSDModemType, or kIOSerialBSDRS232Type. You can experiment with the
+        // matching by changing the last parameter in the above call to CFDictionarySetValue.
+        
+        // As shipped, this sample is only interested in modems,
+        // so add this property to the CFDictionary we're matching on.
+        // This will find devices that advertise themselves as modems,
+        // such as built-in and USB modems. However, this match won't find serial modems.
+    }
+    
+    // Get an iterator across all matching devices.
+    kernResult = IOServiceGetMatchingServices(kIOMasterPortDefault, classesToMatch, &serialPortIterator)
+    if (KERN_SUCCESS != kernResult) {
+        print("IOServiceGetMatchingServices returned \(kernResult)")
+    }
 
-    // Look for devices that claim to be modems.
-    classesToMatchDict[kIOSerialBSDTypeKey] = kIOSerialBSDAllTypes
-    let classesToMatchCFDictRef = (classesToMatchDict as NSDictionary) as CFDictionaryRef
-    
-    // Each serial device object has a property with key
-    // kIOSerialBSDTypeKey and a value that is one of kIOSerialBSDAllTypes,
-    // kIOSerialBSDModemType, or kIOSerialBSDRS232Type. You can experiment with the
-    // matching by changing the last parameter in the above call to CFDictionarySetValue.
-    
-    // As shipped, this sample is only interested in modems,
-    // so add this property to the CFDictionary we're matching on.
-    // This will find devices that advertise themselves as modems,
-    // such as built-in and USB modems. However, this match won't find serial modems.
-    
-    kernResult = IOServiceGetMatchingServices(kIOMasterPortDefault, classesToMatchCFDictRef, &serialPortIterator);
-    
     return kernResult
 }
 
@@ -146,17 +159,17 @@ func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
 // If no modems are found the path name is set to an empty string.
 func getModemPath(serialPortIterator: io_iterator_t) -> String? {
     var modemService: io_object_t
-    var modemFound = false
+    let modemFound = false
     var bsdPath: String? = nil
     // Iterate across all modems found. Use the last one
     
-    do {
+    repeat {
         modemService = IOIteratorNext(serialPortIterator)
         if (modemService != 0) {
             let key: CFString! = "IOCalloutDevice"
             let bsdPathAsCFtring: AnyObject? = IORegistryEntryCreateCFProperty(modemService, key, kCFAllocatorDefault, 0).takeUnretainedValue()
             bsdPath = bsdPathAsCFtring as! String?
-            println("Found \(bsdPath!)")
+            print("Found \(bsdPath!)")
         }
     } while (modemService != 0 && !modemFound)
     return bsdPath
@@ -229,9 +242,9 @@ func openSerialPort(bsdPath: String) -> Int {
     // The O_NONBLOCK flag also causes subsequent I/O on the device to be non-blocking.
     // See open(2) <x-man-page://2/open> for details.
     
-    var fileDescriptor = open(bsdPath, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    let fileDescriptor = open(bsdPath, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fileDescriptor == -1) {
-        println("Error opening port")
+        print("Error opening port")
     }
     
     
@@ -243,7 +256,7 @@ func openSerialPort(bsdPath: String) -> Int {
     
     var result = ioctlTIOCEXCL(fileDescriptor)
     if (result == -1) {
-        println("Error setting TIOXCL")
+        print("Error setting TIOXCL")
     }
     
     // Now that the device is open, clear the O_NONBLOCK flag so subsequent I/O will block.
@@ -252,14 +265,14 @@ func openSerialPort(bsdPath: String) -> Int {
     result = fcntlF_SETFL(fileDescriptor, 0)
     if (result == -1) {
         //printf("Error clearing O_NONBLOCK %s - %s(%d).\n", bsdPath, strerror(errno), errno);
-        println("Error clearing O_NONBLOCK")
+        print("Error clearing O_NONBLOCK")
         //goto error;
     }
     
     // Get the current options and save them so we can restore the default settings later.
     result = tcgetattr(fileDescriptor, &gOriginalTTYAttrs)
     if (result == -1) {
-        println("Error getting attributes")
+        print("Error getting attributes")
     }
     
     // The serial port attributes such as timeouts and baud rate are set by modifying the termios
@@ -272,8 +285,8 @@ func openSerialPort(bsdPath: String) -> Int {
     // Print the current input and output baud rates.
     // See tcsetattr(4) <x-man-page://4/tcsetattr> for details.
     
-    println("Current input baud rate is \(cfgetispeed(&options))")
-    println("Current output baud rate is \(cfgetospeed(&options))")
+    print("Current input baud rate is \(cfgetispeed(&options))")
+    print("Current output baud rate is \(cfgetospeed(&options))")
     
     // Set raw input (non-canonical) mode, with reads blocking until either a single character
     // has been received or a one second timeout expires.
@@ -300,7 +313,7 @@ func openSerialPort(bsdPath: String) -> Int {
     result = ioctlIOSSIOSPEED(fileDescriptor, UnsafeMutablePointer(bitPattern: speed))
     if (result == -1) {
         //printf("Error calling ioctl(..., IOSSIOSPEED, ...) %s - %s(%d).\n" bsdPath, strerror(errno), errno);
-        println("Error calling ioctl(..., IOSSIOSPEED, ...) \(strerror(errno)) \(errno)")
+        print("Error calling ioctl(..., IOSSIOSPEED, ...) \(strerror(errno)) \(errno)")
     }
     
     // Print the new input and output baud rates. Note that the IOSSIOSPEED ioctl interacts with the serial driver
@@ -308,12 +321,12 @@ func openSerialPort(bsdPath: String) -> Int {
     // the current baud rate if the IOSSIOSPEED ioctl was used but will instead return the speed set by the last call
     // to cfsetspeed.
     
-    println("Input baud rate changed to \(cfgetispeed(&options))")
-    println("Output baud rate changed to \(cfgetospeed(&options))")
+    print("Input baud rate changed to \(cfgetispeed(&options))")
+    print("Output baud rate changed to \(cfgetospeed(&options))")
     
     // Cause the new options to take effect immediately.
     if (tcsetattr(fileDescriptor, TCSANOW, &options) == -1) {
-        println("Error setting attributes")
+        print("Error setting attributes")
     }
 
     /*
@@ -689,19 +702,19 @@ func main() -> Int {
     
     kernResult = findModems(&serialPortIterator)
     if (KERN_SUCCESS != kernResult) {
-        println("No modems were found.")
+        print("No modems were found.")
     }
     
-    var bsdPath = getModemPath(serialPortIterator)
+    let bsdPath = getModemPath(serialPortIterator)
     if let path = bsdPath {
-        println("Using port at parth \(path)")
+        print("Using port at parth \(path)")
     } else {
-        println("No modems were found.")
+        print("No modems were found.")
     }
     
     fileDescriptor = openSerialPort(bsdPath!);
     if (-1 == fileDescriptor) {
-        println("Error opening serial port")
+        print("Error opening serial port")
     }
     
     return 0
@@ -752,7 +765,7 @@ int main(int argc, const char * argv[])
 }
 */
 
-println("Hello, World!")
+print("Hello, World!")
 main()
 
 
