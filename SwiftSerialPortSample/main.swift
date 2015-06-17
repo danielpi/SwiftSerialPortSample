@@ -31,7 +31,6 @@ import Cocoa
 import CoreFoundation
 import IOKit
 import IOKit.serial
-//import
 
 
 
@@ -53,10 +52,9 @@ let kATCommandString = "AT\r"
 //#else
 //#define kOKResponseString	"\r\nOK\r\n"
 //#endif
+var kOKResponseString = "\r\nOK\r\n"
 if LOCAL_ECHO {
-    let kOKResponseString = "AT\r\r\nOK\r\n"
-} else {
-    let kOKResponseString = "\r\nOK\r\n"
+    kOKResponseString = "AT\r\r\nOK\r\n"
 }
 
 
@@ -253,7 +251,6 @@ func openSerialPort(bsdPath: String) -> Int {
     }
     
     
-    
     // Note that open() follows POSIX semantics: multiple open() calls to the same file will succeed
     // unless the TIOCEXCL ioctl is issued. This will prevent additional opens except by root-owned
     // processes.
@@ -303,7 +300,7 @@ func openSerialPort(bsdPath: String) -> Int {
     
     // The baud rate, word length, and handshake options can be set as follows:
     
-    cfsetspeed(&options, 19200);		// Set 19200 baud
+    cfsetspeed(&options, 57600);		// Set 19200 baud
     //options.c_cflag |= (CS7 	   | 	// Use 7 bit words
     //                    PARENB	   | 	// Parity enable (even parity if PARODD not also set)
     //                    CCTS_OFLOW | 	// CTS flow control of output
@@ -314,12 +311,12 @@ func openSerialPort(bsdPath: String) -> Int {
     // ultimately determines which baud rates can be used. This ioctl sets both the input
     // and output speed.
     
-    let speed: speed_t = 2400; // Set 14400 baud
-    result = ioctlIOSSIOSPEED(fileDescriptor, UnsafeMutablePointer(bitPattern: speed))
-    if (result == -1) {
+    //let speed: speed_t = 2400; // Set 14400 baud
+    //result = ioctlIOSSIOSPEED(fileDescriptor, UnsafeMutablePointer(bitPattern: speed))
+    //if (result == -1) {
         //printf("Error calling ioctl(..., IOSSIOSPEED, ...) %s - %s(%d).\n" bsdPath, strerror(errno), errno);
-        print("Error calling ioctl(..., IOSSIOSPEED, ...) \(strerror(errno)) \(errno)")
-    }
+    //    print("Error calling ioctl(..., IOSSIOSPEED, ...) \(strerror(errno)) \(errno)")
+    //}
     
     // Print the new input and output baud rates. Note that the IOSSIOSPEED ioctl interacts with the serial driver
     // directly bypassing the termios struct. This means that the following two calls will not be able to read
@@ -609,10 +606,65 @@ static char *logString(char *str)
     
     return buf;
 }
+*/
 
 // Given the file descriptor for a modem device, attempt to initialize the modem by sending it
 // a standard AT command and reading the response. If successful, the modem's response will be "OK".
 // Return true if successful, otherwise false.
+func initializeModem(fileDescriptor: Int) -> Bool {
+    var result = false
+    var buffer: Array<Character> = Array(count: 256, repeatedValue: "?")
+    //var bufPtr: UnsafePointer<Character> = UnsafePointer<Character>(buffer)
+    var bufPtr: Int = 0
+    
+    for tries in 1...kNumRetries {
+        print("Try #\(tries)")
+        
+        var numBytes = write(Int32(fileDescriptor), kATCommandString, kATCommandString.characters.count)
+        if (numBytes == -1) {
+            print("Error writing to modem - \(strerror(errno))(\(errno)).")
+            continue
+        } else {
+            print("Wrote \(numBytes) bytes \"\(kATCommandString)\"")
+        }
+        
+        if (numBytes < kATCommandString.characters.count) {
+            continue
+        }
+        
+        print("Looking for \"\(kOKResponseString)\"\n")
+        
+        // Read characters into our buffer until we get a CR or LF
+        //bufPtr = UnsafePointer<Character>(buffer)
+        bufPtr = 0
+        repeat {
+            print("read")
+            numBytes = read(Int32(fileDescriptor), &buffer, buffer.count)
+            print("\(numBytes)")
+            
+            if (numBytes == -1) {
+                print("Error reading from modem - \(strerror(errno))(\(errno)).\n")
+            } else if (numBytes > 0) {
+                
+                bufPtr += numBytes
+                
+                let lastChar: Character = buffer[bufPtr - 1]
+                print("\(numBytes) \(bufPtr) \(lastChar) \(buffer[255]) \(buffer.capacity)")
+                
+                if (lastChar == "\n" || lastChar == "\r") {
+                    break
+                }
+            }
+            else {
+                print("Nothing read.");
+            }
+        } while (numBytes > 0);
+    }
+    
+    return result
+}
+
+/*
 static Boolean initializeModem(int fileDescriptor)
 {
     char		buffer[256];	// Input buffer
@@ -674,8 +726,27 @@ static Boolean initializeModem(int fileDescriptor)
     
     return result;
 }
-
+*/
 // Given the file descriptor for a serial device, close that device.
+func closeSerialPort(fileDescriptor: Int) {
+    // Block until all written output has been sent from the device.
+    // Note that this call is simply passed on to the serial device driver.
+    // See tcsendbreak(3) <x-man-page://3/tcsendbreak> for details.
+    if (tcdrain(Int32(fileDescriptor)) == -1) {
+        print("Error waiting for drain - \(strerror(errno))(\(errno)).")
+    }
+    
+    // Traditionally it is good practice to reset a serial port back to
+    // the state in which you found it. This is why the original termios struct
+    // was saved.
+    if (tcsetattr(Int32(fileDescriptor), TCSANOW, &gOriginalTTYAttrs) == -1) {
+        print("Error resetting tty attributes - \(strerror(errno))(\(errno)).\n")
+    }
+    
+    close(Int32(fileDescriptor));
+}
+
+/*
 void closeSerialPort(int fileDescriptor)
 {
     // Block until all written output has been sent from the device.
@@ -696,8 +767,8 @@ void closeSerialPort(int fileDescriptor)
     
     close(fileDescriptor);
 }
-
 */
+
 
 func main() -> Int {
     var fileDescriptor: Int
@@ -722,7 +793,16 @@ func main() -> Int {
         print("Error opening serial port")
     }
     
-    return 0
+    if (initializeModem(fileDescriptor)) {
+        print("Modem initialized successfully.");
+    } else {
+        print("Could not initialize modem.");
+    }
+    
+    closeSerialPort(fileDescriptor);
+    print("Modem port closed.");
+    
+    return Int(EX_OK)
 }
 
 /*
