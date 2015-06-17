@@ -120,6 +120,8 @@ static kern_return_t findModems(io_iterator_t *matchingServices)
 }
 */
 
+// Returns an iterator across all known modems. Caller is responsible for
+// releasing the iterator when iteration is complete.
 func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
     var kernResult: kern_return_t = KERN_FAILURE
     
@@ -130,7 +132,7 @@ func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
         print("IOServiceMatching returned a NULL dictionary.");
     } else {
         // Look for devices that claim to be modems.
-        classesToMatch[kIOSerialBSDTypeKey] = kIOSerialBSDModemType
+        classesToMatch[kIOSerialBSDTypeKey] = kIOSerialBSDRS232Type
         
         // Each serial device object has a property with key
         // kIOSerialBSDTypeKey and a value that is one of kIOSerialBSDAllTypes,
@@ -159,19 +161,22 @@ func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
 // If no modems are found the path name is set to an empty string.
 func getModemPath(serialPortIterator: io_iterator_t) -> String? {
     var modemService: io_object_t
-    let modemFound = false
+    var modemFound = false
     var bsdPath: String? = nil
-    // Iterate across all modems found. Use the last one
     
+    // Iterate across all modems found. Use the last one
     repeat {
         modemService = IOIteratorNext(serialPortIterator)
-        if (modemService != 0) {
-            let key: CFString! = "IOCalloutDevice"
-            let bsdPathAsCFtring: AnyObject? = IORegistryEntryCreateCFProperty(modemService, key, kCFAllocatorDefault, 0).takeUnretainedValue()
-            bsdPath = bsdPathAsCFtring as! String?
-            print("Found \(bsdPath!)")
+        guard modemService != 0 else { continue }
+        
+        if let aPath = IORegistryEntryCreateCFProperty(modemService, "IOCalloutDevice", kCFAllocatorDefault, 0).takeUnretainedValue() as? String {
+            print("Found \(aPath)")
+            bsdPath = aPath
+            if (aPath == MATCH_PATH) { modemFound = true }
         }
+    
     } while (modemService != 0 && !modemFound)
+    
     return bsdPath
 }
 
