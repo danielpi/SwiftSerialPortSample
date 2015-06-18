@@ -34,7 +34,6 @@ import IOKit.serial
 
 
 
-
 // Default to local echo being on. If your modem has local echo disabled, undefine the following macro.
 //#define LOCAL_ECHO
 let LOCAL_ECHO = true
@@ -265,6 +264,7 @@ func openSerialPort(bsdPath: String) -> Int {
     // See fcntl(2) <x-man-page//2/fcntl> for details.
     
     result = fcntlF_SETFL(fileDescriptor, 0)
+    //result = fcntl(fileDescriptor, F_SETFL, 0)
     if (result == -1) {
         //printf("Error clearing O_NONBLOCK %s - %s(%d).\n", bsdPath, strerror(errno), errno);
         print("Error clearing O_NONBLOCK")
@@ -330,7 +330,7 @@ func openSerialPort(bsdPath: String) -> Int {
     if (tcsetattr(fileDescriptor, TCSANOW, &options) == -1) {
         print("Error setting attributes")
     }
-
+    
     /*
 
     // To set the modem handshake lines, use the following ioctls.
@@ -614,8 +614,7 @@ static char *logString(char *str)
 func initializeModem(fileDescriptor: Int) -> Bool {
     var result = false
     var buffer: Array<CChar> = Array(count: 256, repeatedValue: 0)
-    //var bufPtr: UnsafePointer<Character> = UnsafePointer<Character>(buffer)
-    var bufPtr: Int = 0
+    var stringBuffer: String =  ""
     
     for tries in 1...kNumRetries {
         print("Try #\(tries)")
@@ -635,26 +634,27 @@ func initializeModem(fileDescriptor: Int) -> Bool {
         print("Looking for \"\(kOKResponseString)\"\n")
         
         // Read characters into our buffer until we get a CR or LF
-        //bufPtr = UnsafePointer<Character>(buffer)
-        bufPtr = 0
         repeat {
             numBytes = read(Int32(fileDescriptor), &buffer, buffer.count)
             
             if (numBytes == -1) {
                 print("Error reading from modem - \(strerror(errno))(\(errno)).\n")
             } else if (numBytes > 0) {
-                bufPtr += numBytes
-                if (buffer[bufPtr - 1] == 10 || buffer[bufPtr - 1] == 13) {
-                    break
-                }
+                // NUL terminate the string and see if we got an OK response
+                buffer[numBytes] = 0
                 if let returned = String.fromCString(buffer) {
-                    print("Received: \(returned)")
+                    print("Read: \(returned)")
+                    stringBuffer += returned
                 }
             }
             else {
-                print("Nothing read.");
+                print("Nothing read.")
             }
-        } while (numBytes > 0);
+        } while (numBytes > 0)
+        
+        if stringBuffer == kOKResponseString {
+            result = true
+        }
     }
     
     return result
