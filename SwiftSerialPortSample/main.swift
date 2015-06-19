@@ -6,26 +6,6 @@
 //  Copyright (c) 2014 Electronic Innovations. All rights reserved.
 //
 
-/*
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <errno.h>
-#include <paths.h>
-#include <termios.h>
-#include <sysexits.h>
-#include <sys/param.h>
-#include <sys/select.h>
-#include <sys/time.h>
-#include <time.h>
-#include <CoreFoundation/CoreFoundation.h>
-#include <IOKit/IOKitLib.h>
-#include <IOKit/serial/IOSerialKeys.h>
-#include <IOKit/serial/ioss.h>
-#include <IOKit/IOBSD.h>
-*/
 
 import Cocoa
 import CoreFoundation
@@ -35,87 +15,24 @@ import IOKit.serial
 
 
 // Default to local echo being on. If your modem has local echo disabled, undefine the following macro.
-//#define LOCAL_ECHO
 let LOCAL_ECHO = true
 
 // Find the first device that matches the callout device path MATCH_PATH.
 // If this is undefined, return the first device found.
-//#define MATCH_PATH "/dev/tty.usbserial-FTFWP23E"
 let MATCH_PATH = "/dev/tty.usbserial-FTFWP23E"
 
-//#define kATCommandString	"AT\r"
 let kATCommandString = "AT\r\n"
 
-//#ifdef LOCAL_ECHO
-//#define kOKResponseString	"AT\r\r\nOK\r\n"
-//#else
-//#define kOKResponseString	"\r\nOK\r\n"
-//#endif
 var kOKResponseString = "\r\nOK\r\n"
 if LOCAL_ECHO {
     kOKResponseString = "AT\r\r\nOK\r\n"
 }
 
-
-//const int kNumRetries = 3;
 let kNumRetries = 3
 
 // Hold the original termios attributes so we can reset them
-//static struct termios gOriginalTTYAttrs;
-
 var gOriginalTTYAttrs: termios = termios()
-//struct gOriginalTTYAttrs:termios
 
-// Function prototypes
-//static kern_return_t findModems(io_iterator_t *matchingServices);
-//static kern_return_t getModemPath(io_iterator_t serialPortIterator, char *bsdPath, CFIndex maxPathSize);
-//static int openSerialPort(const char *bsdPath);
-//static char *logString(char *str);
-//static Boolean initializeModem(int fileDescriptor);
-//static void closeSerialPort(int fileDescriptor);
-
-/*
-// Returns an iterator across all known modems. Caller is responsible for
-// releasing the iterator when iteration is complete.
-static kern_return_t findModems(io_iterator_t *matchingServices)
-{
-    kern_return_t			kernResult;
-    CFMutableDictionaryRef	classesToMatch;
-    
-    // Serial devices are instances of class IOSerialBSDClient.
-    // Create a matching dictionary to find those instances.
-    classesToMatch = IOServiceMatching(kIOSerialBSDServiceValue);
-    if (classesToMatch == NULL) {
-        printf("IOServiceMatching returned a NULL dictionary.\n");
-    }
-    else {
-        // Look for devices that claim to be modems.
-        CFDictionarySetValue(classesToMatch,
-            CFSTR(kIOSerialBSDTypeKey),
-            CFSTR(kIOSerialBSDModemType));
-        
-        // Each serial device object has a property with key
-        // kIOSerialBSDTypeKey and a value that is one of kIOSerialBSDAllTypes,
-        // kIOSerialBSDModemType, or kIOSerialBSDRS232Type. You can experiment with the
-        // matching by changing the last parameter in the above call to CFDictionarySetValue.
-        
-        // As shipped, this sample is only interested in modems,
-        // so add this property to the CFDictionary we're matching on.
-        // This will find devices that advertise themselves as modems,
-        // such as built-in and USB modems. However, this match won't find serial modems.
-    }
-    
-    // Get an iterator across all matching devices.
-    kernResult = IOServiceGetMatchingServices(kIOMasterPortDefault, classesToMatch, matchingServices);
-    if (KERN_SUCCESS != kernResult) {
-        printf("IOServiceGetMatchingServices returned %d\n", kernResult);
-        goto exit;
-    }
-    
-    exit:
-    return kernResult;
-}
-*/
 
 // Returns an iterator across all known modems. Caller is responsible for
 // releasing the iterator when iteration is complete.
@@ -177,64 +94,34 @@ func getModemPath(serialPortIterator: io_iterator_t) -> String? {
     return bsdPath
 }
 
-/*
-static kern_return_t getModemPath(io_iterator_t serialPortIterator, char *bsdPath, CFIndex maxPathSize)
-{
-    io_object_t		modemService;
-    kern_return_t	kernResult = KERN_FAILURE;
-    Boolean			modemFound = false;
+struct FCNTLOptions : OptionSetType {
+    let rawValue: CInt
+    init(rawValue: CInt) { self.rawValue = rawValue }
     
-    // Initialize the returned path
-    *bsdPath = '\0';
+    static let  O_RDONLY        = FCNTLOptions(rawValue: 0x0000)
+    static let  O_WRONLY        = FCNTLOptions(rawValue: 0x0001)
+    static let  O_RDWR          = FCNTLOptions(rawValue: 0x0002)
+    static let  O_ACCMODE       = FCNTLOptions(rawValue: 0x0003)
+    static let  O_NONBLOCK      = FCNTLOptions(rawValue: 0x0004)
+    static let  O_APPEND        = FCNTLOptions(rawValue: 0x0008)
+    static let 	O_SHLOCK        = FCNTLOptions(rawValue: 0x0010)		/* open with shared file lock */
+    static let 	O_EXLOCK        = FCNTLOptions(rawValue: 0x0020)		/* open with exclusive file lock */
+    static let 	O_ASYNC         = FCNTLOptions(rawValue: 0x0040)		/* signal pgrp when data ready */
+    //static let 	O_FSYNC     = FCNTLOptions(rawValue: O_SYNC         /* source compatibility: do not use */
+    static let  O_NOFOLLOW      = FCNTLOptions(rawValue: 0x0100)        /* don't follow symlinks */
+    static let 	O_CREAT         = FCNTLOptions(rawValue: 0x0200)		/* create if nonexistant */
+    static let 	O_TRUNC         = FCNTLOptions(rawValue: 0x0400)		/* truncate to zero length */
+    static let 	O_EXCL          = FCNTLOptions(rawValue: 0x0800)		/* error if already exists */
+    static let	O_EVTONLY       = FCNTLOptions(rawValue: 0x8000)		/* descriptor requested for event notifications only */
     
-    // Iterate across all modems found. In this example, we bail after finding the first modem.
-    
-    while ((modemService = IOIteratorNext(serialPortIterator)) && !modemFound) {
-        CFTypeRef	bsdPathAsCFString;
-        
-        // Get the callout device's path (/dev/cu.xxxxx). The callout device should almost always be
-        // used: the dialin device (/dev/tty.xxxxx) would be used when monitoring a serial port for
-        // incoming calls, e.g. a fax listener.
-        
-        bsdPathAsCFString = IORegistryEntryCreateCFProperty(modemService,
-            CFSTR(kIOCalloutDeviceKey),
-            kCFAllocatorDefault,
-            0);
-        if (bsdPathAsCFString) {
-            Boolean result;
-            
-            // Convert the path from a CFString to a C (NUL-terminated) string for use
-            // with the POSIX open() call.
-            
-            result = CFStringGetCString(bsdPathAsCFString,
-                bsdPath,
-                maxPathSize,
-                kCFStringEncodingUTF8);
-            CFRelease(bsdPathAsCFString);
-            
-            #ifdef MATCH_PATH
-            if (strncmp(bsdPath, MATCH_PATH, strlen(MATCH_PATH)) != 0) {
-                result = false;
-        }
-        #endif
-        
-        if (result) {
-            printf("Modem found with BSD path: %s", bsdPath);
-            modemFound = true;
-            kernResult = KERN_SUCCESS;
-        }
-    }
-    
-    printf("\n");
-    
-    // Release the io_service_t now that we are done with it.
-    
-    (void) IOObjectRelease(modemService);
+    static let	O_NOCTTY        = FCNTLOptions(rawValue: 0x20000)		/* don't assign controlling terminal */
+    static let  O_DIRECTORY     = FCNTLOptions(rawValue: 0x100000)
+    static let  O_SYMLINK       = FCNTLOptions(rawValue: 0x200000)      /* allow open of a symlink */
+    static let	O_CLOEXEC       = FCNTLOptions(rawValue: 0x1000000)     /* implicitly set FD_CLOEXEC */
+    //static let BoxOrBag: PackagingOptions = [Box, Bag]
+    //static let BoxOrCartonOrBag: PackagingOptions = [Box, Carton, Bag]
 }
 
-return kernResult;
-}
-*/
 
 func openSerialPort(bsdPath: String) -> Int {
     //var fileDescriptor: Int = -1
@@ -244,11 +131,11 @@ func openSerialPort(bsdPath: String) -> Int {
     // The O_NONBLOCK flag also causes subsequent I/O on the device to be non-blocking.
     // See open(2) <x-man-page://2/open> for details.
     
-    let fileDescriptor = open(bsdPath, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    let openOptions: FCNTLOptions = [.O_RDWR, .O_NOCTTY, .O_NONBLOCK]
+    let fileDescriptor = open(bsdPath, openOptions.rawValue);
     if (fileDescriptor == -1) {
         print("Error opening port")
     }
-    
     
     // Note that open() follows POSIX semantics: multiple open() calls to the same file will succeed
     // unless the TIOCEXCL ioctl is issued. This will prevent additional opens except by root-owned
@@ -660,69 +547,7 @@ func initializeModem(fileDescriptor: Int) -> Bool {
     return result
 }
 
-/*
-static Boolean initializeModem(int fileDescriptor)
-{
-    char		buffer[256];	// Input buffer
-    char		*bufPtr;		// Current char in buffer
-    ssize_t		numBytes;		// Number of bytes read or written
-    int			tries;			// Number of tries so far
-    Boolean		result = false;
-    
-    for (tries = 1; tries <= kNumRetries; tries++) {
-        printf("Try #%d\n", tries);
-        
-        // Send an AT command to the modem
-        numBytes = write(fileDescriptor, kATCommandString, strlen(kATCommandString));
-        
-        if (numBytes == -1) {
-            printf("Error writing to modem - %s(%d).\n", strerror(errno), errno);
-            continue;
-        }
-        else {
-            printf("Wrote %ld bytes \"%s\"\n", numBytes, logString(kATCommandString));
-        }
-        
-        if (numBytes < strlen(kATCommandString)) {
-            continue;
-        }
-        
-        printf("Looking for \"%s\"\n", logString(kOKResponseString));
-        
-        // Read characters into our buffer until we get a CR or LF
-        bufPtr = buffer;
-        do {
-            numBytes = read(fileDescriptor, bufPtr, &buffer[sizeof(buffer)] - bufPtr - 1);
-            
-            if (numBytes == -1) {
-                printf("Error reading from modem - %s(%d).\n", strerror(errno), errno);
-            }
-            else if (numBytes > 0)
-            {
-                bufPtr += numBytes;
-                if (*(bufPtr - 1) == '\n' || *(bufPtr - 1) == '\r') {
-                    break;
-                }
-            }
-            else {
-                printf("Nothing read.\n");
-            }
-        } while (numBytes > 0);
-        
-        // NUL terminate the string and see if we got an OK response
-        *bufPtr = '\0';
-        
-        printf("Read \"%s\"\n", logString(buffer));
-        
-        if (strncmp(buffer, kOKResponseString, strlen(kOKResponseString)) == 0) {
-            result = true;
-            break;
-        }
-    }
-    
-    return result;
-}
-*/
+
 // Given the file descriptor for a serial device, close that device.
 func closeSerialPort(fileDescriptor: Int) {
     // Block until all written output has been sent from the device.
@@ -741,29 +566,6 @@ func closeSerialPort(fileDescriptor: Int) {
     
     close(Int32(fileDescriptor));
 }
-
-/*
-void closeSerialPort(int fileDescriptor)
-{
-    // Block until all written output has been sent from the device.
-    // Note that this call is simply passed on to the serial device driver.
-    // See tcsendbreak(3) <x-man-page://3/tcsendbreak> for details.
-    if (tcdrain(fileDescriptor) == -1) {
-        printf("Error waiting for drain - %s(%d).\n",
-            strerror(errno), errno);
-    }
-    
-    // Traditionally it is good practice to reset a serial port back to
-    // the state in which you found it. This is why the original termios struct
-    // was saved.
-    if (tcsetattr(fileDescriptor, TCSANOW, &gOriginalTTYAttrs) == -1) {
-        printf("Error resetting tty attributes - %s(%d).\n",
-            strerror(errno), errno);
-    }
-    
-    close(fileDescriptor);
-}
-*/
 
 
 func main() -> Int {
