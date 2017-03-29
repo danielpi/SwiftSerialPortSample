@@ -36,7 +36,7 @@ var gOriginalTTYAttrs: termios = termios()
 
 // Returns an iterator across all known modems. Caller is responsible for
 // releasing the iterator when iteration is complete.
-func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
+func findModems(_ serialPortIterator: inout io_iterator_t ) -> kern_return_t {
     var kernResult: kern_return_t = KERN_FAILURE
     
     // Serial devices are instances of class IOSerialBSDClient.
@@ -73,7 +73,7 @@ func findModems(inout serialPortIterator: io_iterator_t ) -> kern_return_t {
 // path matching MATCH_PATH if defined.
 // If MATCH_PATH is not defined, return the first device found.
 // If no modems are found the path name is set to an empty string.
-func getModemPath(serialPortIterator: io_iterator_t) -> String? {
+func getModemPath(_ serialPortIterator: io_iterator_t) -> String? {
     var modemService: io_object_t
     var modemFound = false
     var bsdPath: String? = nil
@@ -83,10 +83,14 @@ func getModemPath(serialPortIterator: io_iterator_t) -> String? {
         modemService = IOIteratorNext(serialPortIterator)
         guard modemService != 0 else { continue }
         
-        if let aPath = IORegistryEntryCreateCFProperty(modemService, "IOCalloutDevice", kCFAllocatorDefault, 0).takeUnretainedValue() as? String {
+        if let aPath = IORegistryEntryCreateCFProperty(modemService,
+                                                       "IOCalloutDevice" as CFString,
+                                                       kCFAllocatorDefault, 0).takeUnretainedValue() as? String {
             print("Found \(aPath)")
             bsdPath = aPath
-            if (aPath == MATCH_PATH) { modemFound = true }
+            if (aPath == MATCH_PATH) {
+                modemFound = true
+            }
         }
     
     } while (modemService != 0 && !modemFound)
@@ -94,7 +98,7 @@ func getModemPath(serialPortIterator: io_iterator_t) -> String? {
     return bsdPath
 }
 
-struct FCNTLOptions : OptionSetType {
+struct FCNTLOptions : OptionSet {
     let rawValue: CInt
     init(rawValue: CInt) { self.rawValue = rawValue }
     
@@ -123,7 +127,7 @@ struct FCNTLOptions : OptionSetType {
 }
 
 
-func openSerialPort(bsdPath: String) -> Int {
+func openSerialPort(_ bsdPath: String) -> Int {
     //var fileDescriptor: Int = -1
     var options: termios
     
@@ -142,26 +146,24 @@ func openSerialPort(bsdPath: String) -> Int {
     // processes.
     // See tty(4) <x-man-page//4/tty> and ioctl(2) <x-man-page//2/ioctl> for details.
     
-    var result = ioctlTIOCEXCL(fileDescriptor)
+    var result = ioctl(fileDescriptor, TIOCEXCL)
     if (result == -1) {
-        print("Error setting TIOXCL")
+        print("Error setting TIOCEXCL")
     }
     
     // Now that the device is open, clear the O_NONBLOCK flag so subsequent I/O will block.
     // See fcntl(2) <x-man-page//2/fcntl> for details.
     
-    result = fcntlF_SETFL(fileDescriptor, 0)
-    //result = fcntl(fileDescriptor, F_SETFL, 0)
+    result = fcntl(fileDescriptor, F_SETFL, 0)
     if (result == -1) {
-        //printf("Error clearing O_NONBLOCK %s - %s(%d).\n", bsdPath, strerror(errno), errno);
-        print("Error clearing O_NONBLOCK")
-        //goto error;
+        print("Error clearing O_NONBLOCK \(bsdPath) - \(strerror(errno))(\(errno))")
+        //goto error
     }
     
     // Get the current options and save them so we can restore the default settings later.
     result = tcgetattr(fileDescriptor, &gOriginalTTYAttrs)
     if (result == -1) {
-        print("Error getting attributes")
+        print("Error getting attributes \(bsdPath) - \(strerror(errno))(\(errno))")
     }
     
     // The serial port attributes such as timeouts and baud rate are set by modifying the termios
@@ -181,17 +183,17 @@ func openSerialPort(bsdPath: String) -> Int {
     // has been received or a one second timeout expires.
     // See tcsetattr(4) <x-man-page://4/tcsetattr> and termios(4) <x-man-page://4/termios> for details.
     
-    cfmakeraw(&options);
-    //options.c_cc[VMIN] = 0;
+    cfmakeraw(&options)
+    //options.c_cc[VMIN] = 0
     //options.c_cc[VTIME] = 10;
     
     // The baud rate, word length, and handshake options can be set as follows:
     
     cfsetspeed(&options, 57600);		// Set 19200 baud
-    //options.c_cflag |= (CS7 	   | 	// Use 7 bit words
-    //                    PARENB	   | 	// Parity enable (even parity if PARODD not also set)
-    //                    CCTS_OFLOW | 	// CTS flow control of output
-    //                    CRTS_IFLOW);	// RTS flow control of input
+    options.c_cflag |= UInt(CS7          |   // Use 7 bit words
+                            PARENB       |   // Parity enable (even parity if PARODD not also set)
+                            CCTS_OFLOW   |   // CTS flow control of output
+                            CRTS_IFLOW)      // RTS flow control of input
     
     // The IOSSIOSPEED ioctl can be used to set arbitrary baud rates
     // other than those specified by POSIX. The driver for the underlying serial hardware
@@ -200,6 +202,7 @@ func openSerialPort(bsdPath: String) -> Int {
     
     //let speed: speed_t = 2400; // Set 14400 baud
     //result = ioctlIOSSIOSPEED(fileDescriptor, UnsafeMutablePointer(bitPattern: speed))
+    //result = ioctl(fileDescriptor, IOSSIOSPEED, 2400)
     //if (result == -1) {
         //printf("Error calling ioctl(..., IOSSIOSPEED, ...) %s - %s(%d).\n" bsdPath, strerror(errno), errno);
     //    print("Error calling ioctl(..., IOSSIOSPEED, ...) \(strerror(errno)) \(errno)")
@@ -218,226 +221,53 @@ func openSerialPort(bsdPath: String) -> Int {
         print("Error setting attributes")
     }
     
-    /*
-
     // To set the modem handshake lines, use the following ioctls.
     // See tty(4) <x-man-page//4/tty> and ioctl(2) <x-man-page//2/ioctl> for details.
 
     // Assert Data Terminal Ready (DTR)
-    if (ioctl(fileDescriptor, TIOCSDTR) == -1) {
-    printf("Error asserting DTR %s - %s(%d).\n",
-    bsdPath, strerror(errno), errno);
+    if(ioctl(fileDescriptor, TIOCSDTR) == -1) {
+        print("Error asserting DTR \(bsdPath) - \(strerror(errno))(\(errno)).")
     }
-
+    
     // Clear Data Terminal Ready (DTR)
-    if (ioctl(fileDescriptor, TIOCCDTR) == -1) {
-    printf("Error clearing DTR %s - %s(%d).\n",
-    bsdPath, strerror(errno), errno);
+    if(ioctl(fileDescriptor, TIOCCDTR) == -1) {
+        print("Error clearing DTR \(bsdPath) - \(strerror(errno))(\(errno))")
     }
-
+    
     // Set the modem lines depending on the bits set in handshake
-    handshake = TIOCM_DTR | TIOCM_RTS | TIOCM_CTS | TIOCM_DSR;
-    if (ioctl(fileDescriptor, TIOCMSET, &handshake) == -1) {
-    printf("Error setting handshake lines %s - %s(%d).\n",
-    bsdPath, strerror(errno), errno);
+    var handshake = TIOCM_DTR | TIOCM_RTS | TIOCM_CTS | TIOCM_DSR
+    if(ioctl(fileDescriptor, TIOCMSET, &handshake) == -1) {
+        print("Error setting handshake lines \(bsdPath) - \(strerror(errno))(\(errno))")
     }
-
+    
     // To read the state of the modem lines, use the following ioctl.
     // See tty(4) <x-man-page//4/tty> and ioctl(2) <x-man-page//2/ioctl> for details.
 
     // Store the state of the modem lines in handshake
-    if (ioctl(fileDescriptor, TIOCMGET, &handshake) == -1) {
-    printf("Error getting handshake lines %s - %s(%d).\n",
-    bsdPath, strerror(errno), errno);
+    if(ioctl(fileDescriptor, TIOCMGET, &handshake) == -1){
+        print("Error getting handshake lines \(bsdPath) - \(strerror(errno))(\(errno))")
     }
-
-    printf("Handshake lines currently set to %d\n", handshake);
-
-    unsigned long mics = 1UL;
-
+    print("Handshake lines currently set to \(handshake)")
+    
+    /*
     // Set the receive latency in microseconds. Serial drivers use this value to determine how often to
     // dequeue characters received by the hardware. Most applications don't need to set this value: if an
     // app reads lines of characters, the app can't do anything until the line termination character has been
     // received anyway. The most common applications which are sensitive to read latency are MIDI and IrDA
     // applications.
-
-    if (ioctl(fileDescriptor, IOSSDATALAT, &mics) == -1) {
-    // set latency to 1 microsecond
-    printf("Error setting read latency %s - %s(%d).\n",
-    bsdPath, strerror(errno), errno);
-    goto error;
+    var mics = 1
+    
+    if(ioctl(fileDescriptor, IOSSDATALAT, &mics) == -1) {
+        // set latency to 1 microsecond
+        print("Error setting read latency \(bsdPath) - \(strerror(errno))(\(errno))")
+        //goto error
     }
-
-    // Success
-    return fileDescriptor;
-
     */
-
+    // Success
     return Int(fileDescriptor)
 }
 
 /*
-// Given the path to a serial device, open the device and configure it.
-// Return the file descriptor associated with the device.
-static int openSerialPort(const char *bsdPath)
-{
-    int				fileDescriptor = -1;
-    int				handshake;
-    struct termios	options;
-
-    // Open the serial port read/write, with no controlling terminal, and don't wait for a connection.
-    // The O_NONBLOCK flag also causes subsequent I/O on the device to be non-blocking.
-    // See open(2) <x-man-page://2/open> for details.
-    
-    fileDescriptor = open(bsdPath, O_RDWR | O_NOCTTY | O_NONBLOCK);
-    if (fileDescriptor == -1) {
-        printf("Error opening serial port %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-        goto error;
-    }
-    
-    // Note that open() follows POSIX semantics: multiple open() calls to the same file will succeed
-    // unless the TIOCEXCL ioctl is issued. This will prevent additional opens except by root-owned
-    // processes.
-    // See tty(4) <x-man-page//4/tty> and ioctl(2) <x-man-page//2/ioctl> for details.
-    
-    if (ioctl(fileDescriptor, TIOCEXCL) == -1) {
-        printf("Error setting TIOCEXCL on %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-        goto error;
-    }
-    
-    // Now that the device is open, clear the O_NONBLOCK flag so subsequent I/O will block.
-    // See fcntl(2) <x-man-page//2/fcntl> for details.
-    
-    if (fcntl(fileDescriptor, F_SETFL, 0) == -1) {
-        printf("Error clearing O_NONBLOCK %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-        goto error;
-    }
-    
-    // Get the current options and save them so we can restore the default settings later.
-    if (tcgetattr(fileDescriptor, &gOriginalTTYAttrs) == -1) {
-        printf("Error getting tty attributes %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-        goto error;
-    }
-    
-    // The serial port attributes such as timeouts and baud rate are set by modifying the termios
-    // structure and then calling tcsetattr() to cause the changes to take effect. Note that the
-    // changes will not become effective without the tcsetattr() call.
-    // See tcsetattr(4) <x-man-page://4/tcsetattr> for details.
-    
-    options = gOriginalTTYAttrs;
-    
-    // Print the current input and output baud rates.
-    // See tcsetattr(4) <x-man-page://4/tcsetattr> for details.
-    
-    printf("Current input baud rate is %d\n", (int) cfgetispeed(&options));
-    printf("Current output baud rate is %d\n", (int) cfgetospeed(&options));
-    
-    // Set raw input (non-canonical) mode, with reads blocking until either a single character
-    // has been received or a one second timeout expires.
-    // See tcsetattr(4) <x-man-page://4/tcsetattr> and termios(4) <x-man-page://4/termios> for details.
-    
-    cfmakeraw(&options);
-    options.c_cc[VMIN] = 0;
-    options.c_cc[VTIME] = 10;
-    
-    // The baud rate, word length, and handshake options can be set as follows:
-    
-    cfsetspeed(&options, B19200);		// Set 19200 baud
-    options.c_cflag |= (CS7 	   | 	// Use 7 bit words
-        PARENB	   | 	// Parity enable (even parity if PARODD not also set)
-        CCTS_OFLOW | 	// CTS flow control of output
-        CRTS_IFLOW);	// RTS flow control of input
-    
-    // The IOSSIOSPEED ioctl can be used to set arbitrary baud rates
-    // other than those specified by POSIX. The driver for the underlying serial hardware
-    // ultimately determines which baud rates can be used. This ioctl sets both the input
-    // and output speed.
-    
-    speed_t speed = 14400; // Set 14400 baud
-    if (ioctl(fileDescriptor, IOSSIOSPEED, &speed) == -1) {
-        printf("Error calling ioctl(..., IOSSIOSPEED, ...) %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-    }
-    
-    // Print the new input and output baud rates. Note that the IOSSIOSPEED ioctl interacts with the serial driver
-    // directly bypassing the termios struct. This means that the following two calls will not be able to read
-    // the current baud rate if the IOSSIOSPEED ioctl was used but will instead return the speed set by the last call
-    // to cfsetspeed.
-    
-    printf("Input baud rate changed to %d\n", (int) cfgetispeed(&options));
-    printf("Output baud rate changed to %d\n", (int) cfgetospeed(&options));
-    
-    // Cause the new options to take effect immediately.
-    if (tcsetattr(fileDescriptor, TCSANOW, &options) == -1) {
-        printf("Error setting tty attributes %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-        goto error;
-    }
-    
-    // To set the modem handshake lines, use the following ioctls.
-    // See tty(4) <x-man-page//4/tty> and ioctl(2) <x-man-page//2/ioctl> for details.
-    
-    // Assert Data Terminal Ready (DTR)
-    if (ioctl(fileDescriptor, TIOCSDTR) == -1) {
-        printf("Error asserting DTR %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-    }
-    
-    // Clear Data Terminal Ready (DTR)
-    if (ioctl(fileDescriptor, TIOCCDTR) == -1) {
-        printf("Error clearing DTR %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-    }
-    
-    // Set the modem lines depending on the bits set in handshake
-    handshake = TIOCM_DTR | TIOCM_RTS | TIOCM_CTS | TIOCM_DSR;
-    if (ioctl(fileDescriptor, TIOCMSET, &handshake) == -1) {
-        printf("Error setting handshake lines %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-    }
-    
-    // To read the state of the modem lines, use the following ioctl.
-    // See tty(4) <x-man-page//4/tty> and ioctl(2) <x-man-page//2/ioctl> for details.
-    
-    // Store the state of the modem lines in handshake
-    if (ioctl(fileDescriptor, TIOCMGET, &handshake) == -1) {
-        printf("Error getting handshake lines %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-    }
-    
-    printf("Handshake lines currently set to %d\n", handshake);
-    
-    unsigned long mics = 1UL;
-    
-    // Set the receive latency in microseconds. Serial drivers use this value to determine how often to
-    // dequeue characters received by the hardware. Most applications don't need to set this value: if an
-    // app reads lines of characters, the app can't do anything until the line termination character has been
-    // received anyway. The most common applications which are sensitive to read latency are MIDI and IrDA
-    // applications.
-    
-    if (ioctl(fileDescriptor, IOSSDATALAT, &mics) == -1) {
-        // set latency to 1 microsecond
-        printf("Error setting read latency %s - %s(%d).\n",
-            bsdPath, strerror(errno), errno);
-        goto error;
-    }
-    
-    // Success
-    return fileDescriptor;
-    
-    // Failure path
-    error:
-    if (fileDescriptor != -1) {
-        close(fileDescriptor);
-    }
-    
-    return -1;
-}
-
 // Replace non-printable characters in str with '\'-escaped equivalents.
 // This function is used for convenient logging of data traffic.
 static char *logString(char *str)
@@ -498,9 +328,9 @@ static char *logString(char *str)
 // Given the file descriptor for a modem device, attempt to initialize the modem by sending it
 // a standard AT command and reading the response. If successful, the modem's response will be "OK".
 // Return true if successful, otherwise false.
-func initializeModem(fileDescriptor: Int) -> Bool {
+func initializeModem(_ fileDescriptor: Int) -> Bool {
     var result = false
-    var buffer: Array<CChar> = Array(count: 256, repeatedValue: 0)
+    var buffer: Array<CChar> = Array(repeating: 0, count: 256)
     var stringBuffer: String =  ""
     
     for tries in 1...kNumRetries {
@@ -529,7 +359,7 @@ func initializeModem(fileDescriptor: Int) -> Bool {
             } else if (numBytes > 0) {
                 // NUL terminate the string and see if we got an OK response
                 buffer[numBytes] = 0
-                if let returned = String.fromCString(buffer) {
+                if let returned = String(validatingUTF8: buffer) {
                     print("Read: \(returned)")
                     stringBuffer += returned
                 }
@@ -549,7 +379,7 @@ func initializeModem(fileDescriptor: Int) -> Bool {
 
 
 // Given the file descriptor for a serial device, close that device.
-func closeSerialPort(fileDescriptor: Int) {
+func closeSerialPort(_ fileDescriptor: Int) {
     // Block until all written output has been sent from the device.
     // Note that this call is simply passed on to the serial device driver.
     // See tcsendbreak(3) <x-man-page://3/tcsendbreak> for details.
@@ -581,7 +411,7 @@ func main() -> Int {
     
     let bsdPath = getModemPath(serialPortIterator)
     if let path = bsdPath {
-        print("Using port at parth \(path)")
+        print("Using port at path \(path)")
     } else {
         print("No modems were found.")
     }
@@ -603,54 +433,8 @@ func main() -> Int {
     return Int(EX_OK)
 }
 
-/*
-int main(int argc, const char * argv[])
-{
-    int             fileDescriptor;
-    kern_return_t	kernResult;
-    io_iterator_t	serialPortIterator;
-    char            bsdPath[MAXPATHLEN];
-    
-    kernResult = findModems(&serialPortIterator);
-    if (KERN_SUCCESS != kernResult) {
-        printf("No modems were found.\n");
-    }
-    
-    kernResult = getModemPath(serialPortIterator, bsdPath, sizeof(bsdPath));
-    if (KERN_SUCCESS != kernResult) {
-        printf("Could not get path for modem.\n");
-    }
-    
-    IOObjectRelease(serialPortIterator);	// Release the iterator.
-    
-    // Now open the modem port we found, initialize the modem, then close it
-    if (!bsdPath[0]) {
-        printf("No modem port found.\n");
-        return EX_UNAVAILABLE;
-    }
-    
-    fileDescriptor = openSerialPort(bsdPath);
-    if (-1 == fileDescriptor) {
-        return EX_IOERR;
-    }
-    
-    if (initializeModem(fileDescriptor)) {
-        printf("Modem initialized successfully.\n");
-    }
-    else {
-        printf("Could not initialize modem.\n");
-    }
-    
-    closeSerialPort(fileDescriptor);
-    printf("Modem port closed.\n");
-    
-    return EX_OK;
-}
-*/
-
-print("Hello, World!")
-main()
-
+let result = main()
+print(result)
 
 
 
